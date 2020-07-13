@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -13,8 +14,8 @@ var (
 	// awsRegion    = os.Getenv("AWS_REGION")
 	profileaName        = "private"
 	awsRegion           = "us-east-1"
-	tagKey              = "tag:Environment"
-	tagValue            = "qa"
+	tagKey              = "tag:etcd"
+	tagValue            = "true"
 	instanceStateFilter = "running"
 )
 
@@ -41,16 +42,25 @@ func main() {
 	}
 
 	// Func parse result to []*Ec2object
-	ec2Params, err := parseEc2Response(result)
+	ec2Instances, err := parseEc2Response(result)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	// Show objects parameters
-	for _, item := range ec2Params {
-		ShowOutput(item)
-		// fmt.Println(string(item.ToJSON()))
+	//CreateEbsSnapshot func is return pointers to []*ec2.Snapshots
+	ebsSnapList, err := CreateEbsSnapshot(sess, ec2Instances)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	// loop ec2Instances
+	// for _, item := range ec2Instances {
+	// 	ShowOutput(item)
+	//}
+	for _, snap := range ebsSnapList {
+		fmt.Printf("EBS snapshot: %v\n", *snap)
 	}
 }
 
@@ -103,7 +113,6 @@ func parseEc2Response(data *ec2.DescribeInstancesOutput) ([]*Ec2object, error) {
 			blockDeviceList := []*BlockDevice{}
 
 			// Create  object's BlockDevicesList
-
 			// []*InstanceBlockDeviceMapping
 			// Please mention that there are method for instance blk for example SetDeviceName (can be used)
 			for _, blk := range instance.BlockDeviceMappings {
@@ -113,16 +122,89 @@ func parseEc2Response(data *ec2.DescribeInstancesOutput) ([]*Ec2object, error) {
 					State:      *blk.Ebs.Status,
 					VolumeID:   *blk.Ebs.VolumeId,
 				}
+
+				// Append tag EBS Volume
+				if *blk.DeviceName == "/dev/xvda" || *blk.DeviceName == "/dev/nvme0n1" {
+					blockDev.VolumeTag = ec2.Tag{
+						Key:   aws.String("root"),
+						Value: aws.String("true"),
+					}
+				} else {
+					blockDev.VolumeTag = ec2.Tag{
+						Key:   aws.String("root"),
+						Value: aws.String("false"),
+					}
+				}
+
 				// fullfill array []*BlockDevice{}
 				blockDeviceList = append(blockDeviceList, blockDev)
+
+				// fullfill object's property by BlockDevicesList
+				object.BlockDevicesList = blockDeviceList
 			}
-
-			// fullfill object's prperty by BlockDevicesList
-			object.BlockDevicesList = blockDeviceList
-
 			// Append to list of pointers a new pointer to object in memory
 			Ec2objectList = append(Ec2objectList, &object)
 		}
 	}
 	return Ec2objectList, nil
+}
+
+// CreateEbsSnapshot func create EBS snapshot
+func CreateEbsSnapshot(sess *session.Session, ec2List []*Ec2object) ([]*ec2.Snapshot, error) {
+	ec2svc := ec2.New(sess)
+	ebsSnapshots := []*ec2.Snapshot{}
+	for _, instance := range ec2List {
+		for _, vol := range instance.BlockDevicesList {
+
+			// Skip root disk
+			if *vol.VolumeTag.Key == "root" && *vol.VolumeTag.Value == "true" {
+				continue
+			}
+
+			// Create TagSepec for Snapshot
+			tagSpec := []*ec2.TagSpecification{
+				// &ec2.TagSpecification{
+				// 	ResourceType: aws.String(ec2.ResourceTypeSnapshot),
+				// 	Tags: []*ec2.Tag{
+				// 		&ec2.Tag{
+				// 			Key:   aws.String("SourceVolume"),
+				// 			Value: aws.String(vol.VolumeID),
+				// 		},
+				// 	},
+				// },
+				// &ec2.TagSpecification{
+				// 	ResourceType: aws.String(ec2.ResourceTypeSnapshot),
+				// 	Tags: []*ec2.Tag{
+				// 		&ec2.Tag{
+				// 			Key:   aws.String("SourceInstance"),
+				// 			Value: aws.String(instance.InstanceID),
+				// 		},
+				// 	},
+				// },
+				&ec2.TagSpecification{
+					ResourceType: aws.String(ec2.ResourceTypeSnapshot),
+					Tags: []*ec2.Tag{
+						&ec2.Tag{
+							Key:   aws.String(*vol.VolumeTag.Key),
+							Value: aws.String(*vol.VolumeTag.Value),
+						},
+					},
+				},
+			}
+
+			input := &ec2.CreateSnapshotInput{
+				Description:       aws.String("EBS Snapshot"),
+				DryRun:            aws.Bool(false),
+				TagSpecifications: tagSpec,
+				VolumeId:          aws.String(vol.VolumeID),
+			}
+
+			snap, err := ec2svc.CreateSnapshot(input)
+			if err != nil {
+				return nil, err
+			}
+			ebsSnapshots = append(ebsSnapshots, snap)
+		}
+	}
+	return ebsSnapshots, nil
 }

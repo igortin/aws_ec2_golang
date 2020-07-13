@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+
+	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
 // ConsoleWriter custom Interface
@@ -27,20 +29,21 @@ type Ec2object struct {
 
 // BlockDevice structure
 type BlockDevice struct {
-	DeviceName string `json:"DeviceName"`
-	State      string `json:"State"`
-	VolumeID   string `json:"VolumeId"`
+	DeviceName string  `json:"DeviceName"`
+	State      string  `json:"State"`
+	VolumeID   string  `json:"VolumeId"`
+	VolumeTag  ec2.Tag `json:"VolumeTag"`
 }
 
 // String method for Ec2object
 func (eo *Ec2object) String() {
 	fmt.Println("Instance ID:", eo.InstanceID)
 	fmt.Println("Instance State", eo.InstanceState)
-	fmt.Println("Public Hosname:", eo.PublicDNSame)
-	fmt.Println("Private Hostname:", eo.PrivateDNSName)
+	// fmt.Println("Public Hosname:", eo.PublicDNSame)
+	// fmt.Println("Private Hostname:", eo.PrivateDNSName)
 	fmt.Println("Attached volumes number:", len(eo.BlockDevicesList))
 	for _, vol := range eo.BlockDevicesList {
-		fmt.Printf("\tVolume id: %s\n", vol.VolumeID)
+		fmt.Printf("\tVolume id: %s %v\n", vol.VolumeID, vol.VolumeTag)
 	}
 }
 

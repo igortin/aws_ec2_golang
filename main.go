@@ -26,9 +26,11 @@ func main() {
 	if err != nil {
 		log.Println("Error: Can not create new session.")
 	}
+	// New client with a session
+	ec2svc := ec2.New(sess)
 
 	// Get data from AWS service
-	result, err := ec2GetResponse(sess)
+	result, err := ec2GetResponse(ec2svc)
 	if err != nil {
 		log.Println("Error: Can noot get data")
 		return
@@ -48,7 +50,7 @@ func main() {
 	}
 
 	//CreateEbsSnapshot func is return pointers to []*ec2.Snapshots
-	ebsSnapList, err := CreateEbsSnapshot(sess, ec2Instances)
+	ebsSnapList, err := CreateEbsSnapshot(ec2svc, ec2Instances)
 	if err != nil {
 		log.Println(err)
 		return
@@ -65,11 +67,7 @@ func main() {
 }
 
 // Func to get data from AWS EC2 service
-func ec2GetResponse(sess *session.Session) (*ec2.DescribeInstancesOutput, error) {
-
-	// New client with a session
-	ec2svc := ec2.New(sess)
-
+func ec2GetResponse(ec2svc *ec2.EC2) (*ec2.DescribeInstancesOutput, error) {
 	// Init instance request of structure DescribeInstancesInput
 	input := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{
@@ -153,8 +151,7 @@ func parseEc2Response(data *ec2.DescribeInstancesOutput) ([]*Ec2object, error) {
 }
 
 // CreateEbsSnapshot func create EBS snapshot
-func CreateEbsSnapshot(sess *session.Session, ec2List []*Ec2object) ([]*ec2.Snapshot, error) {
-	ec2svc := ec2.New(sess)
+func CreateEbsSnapshot(ec2svc *ec2.EC2, ec2List []*Ec2object) ([]*ec2.Snapshot, error) {
 	ebsSnapshots := []*ec2.Snapshot{}
 	for _, instance := range ec2List {
 		for _, vol := range instance.BlockDevicesList {

@@ -23,7 +23,7 @@ Done
 ```
 
 ### How to use
-Go to AWS Managment Console EC2 Tab. 
+Go to AWS Managment Console EC2 Tab\  
 Tag EC2 instance: 
 - key: role 
 - Value: etcd

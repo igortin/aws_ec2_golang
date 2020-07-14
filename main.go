@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -14,8 +13,8 @@ var (
 	// awsRegion    = os.Getenv("AWS_REGION")
 	profileaName        = "private"
 	awsRegion           = "us-east-1"
-	tagKey              = "tag:etcd"
-	tagValue            = "true"
+	tagKey              = "tag:role"
+	tagValue            = "etcd"
 	instanceStateFilter = "running"
 )
 
@@ -55,12 +54,13 @@ func main() {
 		return
 	}
 
-	// loop ec2Instances
+	// Show ec2Instances parameters
 	// for _, item := range ec2Instances {
 	// 	ShowOutput(item)
 	//}
+
 	for _, snap := range ebsSnapList {
-		fmt.Printf("EBS snapshot: %v\n", *snap)
+		log.Printf("EBS snapshot: %v\n", *snap.SnapshotId)
 	}
 }
 
@@ -80,8 +80,11 @@ func ec2GetResponse(sess *session.Session) (*ec2.DescribeInstancesOutput, error)
 				},
 			},
 			{
-				Name:   aws.String("instance-state-name"),
-				Values: []*string{aws.String(instanceStateFilter), aws.String("pending")},
+				Name: aws.String("instance-state-name"),
+				Values: []*string{
+					aws.String(instanceStateFilter),
+					aws.String("pending"),
+				},
 			},
 		},
 	}
@@ -163,30 +166,20 @@ func CreateEbsSnapshot(sess *session.Session, ec2List []*Ec2object) ([]*ec2.Snap
 
 			// Create TagSepec for Snapshot
 			tagSpec := []*ec2.TagSpecification{
-				// &ec2.TagSpecification{
-				// 	ResourceType: aws.String(ec2.ResourceTypeSnapshot),
-				// 	Tags: []*ec2.Tag{
-				// 		&ec2.Tag{
-				// 			Key:   aws.String("SourceVolume"),
-				// 			Value: aws.String(vol.VolumeID),
-				// 		},
-				// 	},
-				// },
-				// &ec2.TagSpecification{
-				// 	ResourceType: aws.String(ec2.ResourceTypeSnapshot),
-				// 	Tags: []*ec2.Tag{
-				// 		&ec2.Tag{
-				// 			Key:   aws.String("SourceInstance"),
-				// 			Value: aws.String(instance.InstanceID),
-				// 		},
-				// 	},
-				// },
 				&ec2.TagSpecification{
 					ResourceType: aws.String(ec2.ResourceTypeSnapshot),
 					Tags: []*ec2.Tag{
 						&ec2.Tag{
 							Key:   aws.String(*vol.VolumeTag.Key),
 							Value: aws.String(*vol.VolumeTag.Value),
+						},
+						&ec2.Tag{
+							Key:   aws.String("source_Volume"),
+							Value: aws.String(vol.VolumeID),
+						},
+						&ec2.Tag{
+							Key:   aws.String("source_Instance"),
+							Value: aws.String(instance.InstanceID),
 						},
 					},
 				},

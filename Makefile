@@ -1,4 +1,4 @@
 .PHONY: build
 
 build:
-        go build -o main .
+	GOOS=linux go build -o goEbsSnap .
